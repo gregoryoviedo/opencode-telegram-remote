@@ -1,0 +1,23 @@
+# Build artifacts
+backend/bin/
+*.test
+*.out
+
+# State and logs
+.opencode-remote/
+.opencode.pid
+remote-bot
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Editor
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# env
+.env

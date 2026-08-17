@@ -1,0 +1,172 @@
+package telegram
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/opencode-remote/opencode-telegram-remote/internal/domain"
+	tele "gopkg.in/telebot.v3"
+	"gopkg.in/telebot.v3/middleware"
+)
+
+const callbackEndpoint = "rb"
+
+type Response = domain.BotResponse
+type Button = domain.BotButton
+type Handler = domain.BotHandler
+
+type Config struct {
+	Token         string
+	AllowedChatID int64
+	PollTimeout   time.Duration
+	APIRoot       string
+	ProxyURL      string
+}
+
+type Bot struct {
+	client  *tele.Bot
+	handler Handler
+	logger  *slog.Logger
+}
+
+func New(config Config, handler Handler, logger *slog.Logger) (*Bot, error) {
+	if strings.TrimSpace(config.Token) == "" {
+		return nil, fmt.Errorf("Telegram bot token is required")
+	}
+	if config.AllowedChatID == 0 {
+		return nil, fmt.Errorf("allowed Telegram chat ID is required")
+	}
+	if config.PollTimeout <= 0 {
+		config.PollTimeout = 10 * time.Second
+	}
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	logger = logger.With("component", "telegram")
+	client, err := tele.NewBot(tele.Settings{
+		Token:  config.Token,
+		URL:    config.APIRoot,
+		Poller: &tele.LongPoller{
+			Timeout:        config.PollTimeout,
+			AllowedUpdates: []string{"message", "callback_query"},
+		},
+		OnError: func(err error, _ tele.Context) {
+			logger.Error("telegram handler error", "err", err)
+		},
+		Client: buildHTTPClient(config.ProxyURL),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create Telegram bot: %w", err)
+	}
+	bot := &Bot{client: client, handler: handler, logger: logger}
+	bot.register(config.AllowedChatID)
+	if err := bot.registerCommands(); err != nil {
+		logger.Warn("failed to set Telegram command list", "err", err)
+	}
+	return bot, nil
+}
+
+func (b *Bot) Start() { b.client.Start() }
+
+func (b *Bot) Stop() { b.client.Stop() }
+
+func (b *Bot) register(allowedChatID int64) {
+	authorized := middleware.Whitelist(allowedChatID)
+	commands := []string{"/start", "/help", "/status", "/projects", "/init", "/sessions", "/diff", "/changes", "/undo"}
+	for _, command := range commands {
+		command := command
+		b.client.Handle(command, func(c tele.Context) error {
+			response, err := b.handler.HandleCommand(context.Background(), c.Chat().ID, command, c.Args())
+			if err != nil {
+				return err
+			}
+			return b.send(c, response)
+		}, authorized)
+	}
+	b.client.Handle(tele.OnText, func(c tele.Context) error {
+		response, err := b.handler.HandleText(context.Background(), c.Chat().ID, c.Text())
+		if err != nil {
+			return err
+		}
+		return b.send(c, response)
+	}, authorized)
+
+	button := &tele.InlineButton{Unique: callbackEndpoint}
+	b.client.Handle(button, func(c tele.Context) error {
+		if err := c.Respond(); err != nil {
+			return err
+		}
+		response, err := b.handler.HandleCallback(context.Background(), c.Chat().ID, c.Data())
+		if err != nil {
+			return err
+		}
+		response.Edit = true
+		return b.send(c, response)
+	}, authorized)
+}
+
+func (b *Bot) registerCommands() error {
+	commands := []tele.Command{
+		{Text: "start", Description: "👋 Bienvenida y ayuda."},
+		{Text: "help", Description: "❓ Lista de comandos."},
+		{Text: "projects", Description: "📂 Elegir proyecto."},
+		{Text: "init", Description: "🚀 Arrancar servidor."},
+		{Text: "status", Description: "💡 Estado actual."},
+		{Text: "sessions", Description: "💬 Sesiones activas."},
+		{Text: "diff", Description: "📝 Cambios de la sesión."},
+		{Text: "changes", Description: "📝 Alias de /diff."},
+		{Text: "undo", Description: "↩️ Revertir último cambio."},
+	}
+	if err := b.client.SetCommands(commands); err != nil {
+		return fmt.Errorf("set bot commands: %w", err)
+	}
+	return nil
+}
+
+func (b *Bot) send(c tele.Context, response Response) error {
+	markup := keyboard(response.Buttons)
+	if response.Edit {
+		if markup == nil {
+			return c.Edit(response.Text)
+		}
+		return c.Edit(response.Text, markup)
+	}
+	if markup == nil {
+		return c.Send(response.Text)
+	}
+	return c.Send(response.Text, markup)
+}
+
+func keyboard(buttons [][]Button) *tele.ReplyMarkup {
+	if len(buttons) == 0 {
+		return nil
+	}
+	markup := &tele.ReplyMarkup{}
+	rows := make([]tele.Row, 0, len(buttons))
+	for _, buttonRow := range buttons {
+		row := make(tele.Row, 0, len(buttonRow))
+		for _, button := range buttonRow {
+			row = append(row, tele.Btn{Unique: callbackEndpoint, Text: button.Text, Data: button.Data})
+		}
+		rows = append(rows, row)
+	}
+	markup.Inline(rows...)
+	return markup
+}
+
+func buildHTTPClient(proxyURL string) *http.Client {
+	if proxyURL == "" {
+		return nil
+	}
+	proxy, err := url.Parse(proxyURL)
+	if err != nil {
+		return &http.Client{}
+	}
+	return &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxy)}}
+}

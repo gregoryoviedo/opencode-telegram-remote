@@ -1,0 +1,147 @@
+package sqlite
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/opencode-remote/opencode-telegram-remote/internal/domain"
+	_ "modernc.org/sqlite"
+)
+
+type Repository struct {
+	db *sql.DB
+}
+
+func Open(path string) (*Repository, error) {
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec(`PRAGMA journal_mode = WAL`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("enable sqlite WAL: %w", err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS runtime_state (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			workspace_root TEXT NOT NULL,
+			project_id TEXT NOT NULL DEFAULT '',
+			relative_path TEXT NOT NULL DEFAULT '',
+			session_id TEXT NOT NULL DEFAULT '',
+			updated_at TEXT NOT NULL
+		)
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create runtime_state: %w", err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS directory_navigation (
+			id TEXT PRIMARY KEY,
+			chat_id INTEGER NOT NULL,
+			current_relative_path TEXT NOT NULL,
+			expires_at TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create directory_navigation: %w", err)
+	}
+	return &Repository{db: db}, nil
+}
+
+func (r *Repository) Close() error { return r.db.Close() }
+
+func (r *Repository) LoadRuntimeState(ctx context.Context) (domain.RuntimeState, error) {
+	var state domain.RuntimeState
+	var updated string
+	err := r.db.QueryRowContext(ctx, `
+		SELECT workspace_root, project_id, relative_path, session_id, updated_at
+		FROM runtime_state WHERE id = 1
+	`).Scan(&state.WorkspaceRoot, &state.ProjectID, &state.RelativePath, &state.SessionID, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.RuntimeState{}, nil
+	}
+	if err != nil {
+		return domain.RuntimeState{}, fmt.Errorf("load runtime state: %w", err)
+	}
+	state.UpdatedAt, err = time.Parse(time.RFC3339Nano, updated)
+	if err != nil {
+		return domain.RuntimeState{}, fmt.Errorf("parse runtime state timestamp: %w", err)
+	}
+	return state, nil
+}
+
+func (r *Repository) SaveRuntimeState(ctx context.Context, state domain.RuntimeState) error {
+	if state.UpdatedAt.IsZero() {
+		state.UpdatedAt = time.Now().UTC()
+	}
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO runtime_state (id, workspace_root, project_id, relative_path, session_id, updated_at)
+		VALUES (1, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			workspace_root = excluded.workspace_root,
+			project_id = excluded.project_id,
+			relative_path = excluded.relative_path,
+			session_id = excluded.session_id,
+			updated_at = excluded.updated_at
+	`, state.WorkspaceRoot, state.ProjectID, state.RelativePath, state.SessionID, state.UpdatedAt.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return fmt.Errorf("save runtime state: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) SaveNavigation(ctx context.Context, state domain.NavigationState) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO directory_navigation (id, chat_id, current_relative_path, expires_at, created_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			chat_id = excluded.chat_id,
+			current_relative_path = excluded.current_relative_path,
+			expires_at = excluded.expires_at,
+			created_at = excluded.created_at
+	`, state.ID, state.ChatID, state.CurrentRelativePath, state.ExpiresAt.UTC().Format(time.RFC3339Nano), state.CreatedAt.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return fmt.Errorf("save navigation state: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) GetNavigation(ctx context.Context, id string) (domain.NavigationState, error) {
+	var state domain.NavigationState
+	var expiresAt, createdAt string
+	err := r.db.QueryRowContext(ctx, `
+		SELECT id, chat_id, current_relative_path, expires_at, created_at
+		FROM directory_navigation WHERE id = ?
+	`, id).Scan(&state.ID, &state.ChatID, &state.CurrentRelativePath, &expiresAt, &createdAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.NavigationState{}, domain.ErrNavigationNotFound
+	}
+	if err != nil {
+		return domain.NavigationState{}, fmt.Errorf("load navigation state: %w", err)
+	}
+	state.ExpiresAt, err = time.Parse(time.RFC3339Nano, expiresAt)
+	if err != nil {
+		return domain.NavigationState{}, fmt.Errorf("parse navigation expiry: %w", err)
+	}
+	state.CreatedAt, err = time.Parse(time.RFC3339Nano, createdAt)
+	if err != nil {
+		return domain.NavigationState{}, fmt.Errorf("parse navigation creation time: %w", err)
+	}
+	if !time.Now().UTC().Before(state.ExpiresAt) {
+		_ = r.DeleteNavigation(ctx, id)
+		return domain.NavigationState{}, domain.ErrNavigationNotFound
+	}
+	return state, nil
+}
+
+func (r *Repository) DeleteNavigation(ctx context.Context, id string) error {
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM directory_navigation WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("delete navigation state: %w", err)
+	}
+	return nil
+}
