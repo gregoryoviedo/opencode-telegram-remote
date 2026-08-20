@@ -6,7 +6,7 @@ run:
   modules-download-mode: readonly
 
 linters:
-  disable-all: true
+  disable-all: false
   enable:
     # Curated set: catches real bugs without flooding CI with style noise.
     - errcheck       # unchecked errors
@@ -42,4 +42,5 @@ formatters:
     - goimports
   settings:
     goimports:
-      local-prefixes: github.com/gregoryoviedo/opencode-telegram-remote
+      local-prefixes:
+        - github.com/gregoryoviedo/opencode-telegram-remote
