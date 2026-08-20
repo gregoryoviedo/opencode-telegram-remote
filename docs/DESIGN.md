@@ -161,6 +161,76 @@ file. Files of note:
 - **No IPC between wrapper and bot**: the wrapper never parses the
   bot's stdout. Lifecycle is supervised via `Process` + `terminationHandler`.
 
+## Why two different architectures in one project
+
+Go uses hexagonal / clean architecture; the Swift wrapper uses MVVM.
+That is intentional, not a leak, and the two do not need to be
+"unified".
+
+Each runtime uses the idioms of its ecosystem:
+
+- **Go** has explicit, lightweight interfaces and a package model that
+  maps 1:1 to ports & adapters. A backend with several external
+  actors (Telegram, OpenCode, SQLite, the filesystem, a subprocess)
+  naturally expresses itself as a stable `internal/domain` core
+  surrounded by swappable adapters. The "domain package imports only
+  stdlib" rule is enforced by tooling (`goimports`, `go vet`) and the
+  compiler itself.
+- **Swift** (with SwiftUI + Combine + `@Published` / `ObservableObject`)
+  *is* MVVM by construction: the view binds to an observable view-model,
+  the view-model exposes state, and a model layer (here `BotController` +
+  `ConfigStore`) does the work. Forcing hexagonal onto a SwiftUI app
+  would fight the framework, and forcing MVVM onto Go would fight
+  `net/http`, `database/sql`, and the lack of a notification bus.
+
+### What the two architectures share
+
+Although the vocabulary differs, the underlying philosophy is the same:
+
+| Hexagonal (Go)        | MVVM (Swift)             | Same principle                |
+|-----------------------|--------------------------|-------------------------------|
+| Domain at the centre  | Model at the centre      | Stable core, slow to change   |
+| Ports = interfaces    | ViewModel = `ObservableObject` | Observable / replaceable contract |
+| Adapters at the edge  | View + services at the edge | Replaceable boundaries, easy to mock |
+| Dependency rule inward | UI does not touch the model | Dependencies point at the core  |
+
+### The seam between the two architectures
+
+The two runtimes share **no code, no types, no FFI, no gRPC, no
+protobuf**. They talk through a process boundary whose contract is
+deliberately minimal and stable:
+
+1. **The `.env` schema** — the set of variable names and value formats
+   documented in `README.md`. This is the only shared schema.
+2. **The `Process` API** — `executableURL`, `environment`,
+   `terminationHandler`, and the captured stdout/stderr piped to
+   `bot.log`.
+3. **An implicit log format** — the wrapper does not parse the bot's
+   stdout; it only streams it to a file. If the bot's log format ever
+   needs to change, the wrapper does not notice.
+
+### Why this is the right answer (and not "one architecture to rule them all")
+
+A unified architecture across languages only makes sense when the
+domains are shared in code: a single proto schema, a generated client,
+FFI bindings, or a service mesh. None of those exist here, and adding
+them would multiply the project's complexity for no benefit — the Go
+binary and the Swift wrapper are two genuinely independent programs
+with one small, well-defined contract between them.
+
+The wrapper is intentionally a **dumb launcher**: it reads Settings,
+writes a `0600` `.env`, spawns the binary, and supervises its
+lifecycle. Its own "domain" is trivial (toggle state + last
+configuration); the real business domain lives 100% inside the Go
+binary. Duplicating that domain in Swift would create a second source
+of truth that would silently drift from the Go implementation.
+
+If a future contributor proposes "let's unify the architectures", the
+question to ask is: *which new shared piece of code would force the
+unification, and what does it actually buy us?* If the answer is "no
+new shared code, just consistency for its own sake", the answer here
+is to keep the two architectures separate.
+
 ## Workspace safety
 
 The whole product hinges on one invariant: every path the bot touches must
