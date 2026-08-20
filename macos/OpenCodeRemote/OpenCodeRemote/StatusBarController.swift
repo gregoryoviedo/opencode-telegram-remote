@@ -99,6 +99,12 @@ final class StatusBarController: NSObject {
         )
         popover.contentViewController = NSHostingController(rootView: content)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+
+        guard let popoverWindow = popover.contentViewController?.view.window else { return }
+        let buttonRect = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) ?? .zero
+        let x = buttonRect.midX - popoverWindow.frame.width / 2
+        let y = buttonRect.minY - popoverWindow.frame.height
+        popoverWindow.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
     private func showContextMenu() {
