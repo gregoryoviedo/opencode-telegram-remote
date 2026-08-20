@@ -75,7 +75,7 @@ func TestEndToEndSelectsProjectThenPrompt(t *testing.T) {
 
 	fake := &fakeServer{started: true}
 	navigation := usecase.NewNavigationService(browser, store)
-	handler := usecase.NewBotHandler(navigation, store, opencodeClient, fake, browser)
+	handler := usecase.NewHandler(navigation, store, opencodeClient, fake, browser)
 	ctx := context.Background()
 
 	state, entries, err := navigation.Start(ctx, 42)
@@ -129,7 +129,7 @@ func TestHandlerIgnoresForeignChat(t *testing.T) {
 	client, _ := opencode.NewClient(opencodeServer.URL, &http.Client{Timeout: time.Second})
 
 	navigation := usecase.NewNavigationService(browser, store)
-	handler := usecase.NewBotHandler(navigation, store, client, &fakeServer{}, browser)
+	handler := usecase.NewHandler(navigation, store, client, &fakeServer{}, browser)
 	ctx := context.Background()
 
 	state, _, err := navigation.Start(ctx, 42)

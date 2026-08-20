@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 
 struct BotConfiguration: Equatable {
     var workspaceRoot: String = ""
@@ -34,7 +33,7 @@ struct BotConfiguration: Equatable {
     }
 }
 
-final class ConfigStore: ObservableObject {
+final class ConfigStore {
     private enum Key {
         static let workspaceRoot = "workspaceRoot"
         static let telegramBotToken = "telegramBotToken"

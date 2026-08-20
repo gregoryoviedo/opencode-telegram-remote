@@ -34,10 +34,10 @@ func (r *recordingServer) WorkingDir() string {
 	return r.startedAt[len(r.startedAt)-1]
 }
 
-// newInitFixture creates a workspace with the requested layout, a BotHandler
+// newInitFixture creates a workspace with the requested layout, a Handler
 // backed by an in-memory SQLite store and a recordingServer. Returns the
 // workspace root, the handler and the recorder.
-func newInitFixture(t *testing.T, layout []string) (string, *usecase.BotHandler, *recordingServer) {
+func newInitFixture(t *testing.T, layout []string) (string, *usecase.Handler, *recordingServer) {
 	t.Helper()
 	root := t.TempDir()
 	// On macOS, /tmp and /var/folders are symlinks; the WorkspaceBrowser
@@ -61,7 +61,7 @@ func newInitFixture(t *testing.T, layout []string) (string, *usecase.BotHandler,
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	server := &recordingServer{}
-	handler := usecase.NewBotHandler(nil, store, nil, server, browser)
+	handler := usecase.NewHandler(nil, store, nil, server, browser)
 	return root, handler, server
 }
 

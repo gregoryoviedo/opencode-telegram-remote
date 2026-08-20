@@ -38,7 +38,6 @@ final class AppState: ObservableObject {
     @Published var configuration: BotConfiguration
     @Published var startedAt: Date?
     @Published var lastError: String?
-    @Published var isLoginItemEnabled: Bool = false
 
     let configStore: ConfigStore
 

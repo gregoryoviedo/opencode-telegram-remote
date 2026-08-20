@@ -30,7 +30,6 @@ type OpenCodeClient interface {
 	SendPrompt(ctx context.Context, sessionID, text string) (string, error)
 	Revert(ctx context.Context, sessionID string) error
 	FileStatus(ctx context.Context, sessionID string) ([]FileChange, error)
-	SubscribeEvents(ctx context.Context) (<-chan OpenCodeEvent, error)
 }
 
 type BotHandler interface {

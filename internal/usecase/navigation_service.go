@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"path/filepath"
 	"time"
 
@@ -117,7 +116,7 @@ func (s *NavigationService) authorize(ctx context.Context, id string, chatID int
 		return domain.NavigationState{}, err
 	}
 	if state.ChatID != chatID {
-		return domain.NavigationState{}, errors.New("navigation state belongs to another chat")
+		return domain.NavigationState{}, domain.ErrUnauthorizedNavigation
 	}
 	return state, nil
 }

@@ -2,6 +2,11 @@ import Foundation
 import Combine
 
 final class BotController {
+    private static let logFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        return f
+    }()
+
     private var process: Process?
     private var stdoutPipe: Pipe?
     private var stderrPipe: Pipe?
@@ -14,6 +19,8 @@ final class BotController {
 
     let stateSubject = PassthroughSubject<BotStatus, Never>()
     var envFileURL: URL = AppPaths.envFile
+    var telegramAPIRoot: String = ""
+    var telegramProxyURL: String = ""
 
     private var onStateChange: ((BotStatus) -> Void)?
 
@@ -25,8 +32,10 @@ final class BotController {
         state.isRunning
     }
 
-    func start() {
+    func start(telegramAPIRoot: String = "", telegramProxyURL: String = "") {
         guard !state.isRunning else { return }
+        self.telegramAPIRoot = telegramAPIRoot
+        self.telegramProxyURL = telegramProxyURL
 
         do {
             try AppPaths.ensureDirectories()
@@ -67,6 +76,12 @@ final class BotController {
         env["REMOTE_STATE_PATH"] = AppPaths.supportDirectory
             .appendingPathComponent("state.db").path
         env["GIN_MODE"] = "release"
+        if !telegramAPIRoot.isEmpty {
+            env["TELEGRAM_API_ROOT"] = telegramAPIRoot
+        }
+        if !telegramProxyURL.isEmpty {
+            env["TELEGRAM_PROXY_URL"] = telegramProxyURL
+        }
         proc.environment = env
         proc.currentDirectoryURL = URL(fileURLWithPath: NSHomeDirectory())
         proc.standardInput = FileHandle.nullDevice
@@ -167,14 +182,10 @@ final class BotController {
 
     private func openLogFile() throws {
         let url = AppPaths.botLogFile
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: url.path) {
-            try Data().write(to: url)
-        }
         let handle = try FileHandle(forWritingTo: url)
         try handle.seekToEnd()
         logFileHandle = handle
-        let banner = "\n--- remote-bot start at \(ISO8601DateFormatter().string(from: Date())) ---\n"
+        let banner = "\n--- remote-bot start at \(BotController.logFormatter.string(from: Date())) ---\n"
         if let data = banner.data(using: .utf8) {
             handle.write(data)
         }
@@ -203,7 +214,7 @@ final class BotController {
     }
 
     private func log(_ message: String) {
-        let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(message)\n"
+        let line = "[\(BotController.logFormatter.string(from: Date()))] \(message)\n"
         if let data = line.data(using: .utf8) {
             try? logFileHandle?.write(contentsOf: data)
         }

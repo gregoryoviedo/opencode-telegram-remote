@@ -1,7 +1,6 @@
 import Foundation
 import ServiceManagement
 
-@available(macOS 13.0, *)
 enum LoginItemManager {
     static let service = SMAppService.mainApp
 
@@ -27,7 +26,13 @@ enum LoginItemManager {
 
     static var isInstalledInApplications: Bool {
         let bundlePath = Bundle.main.bundlePath
-        return bundlePath.hasPrefix("/Applications/") || bundlePath.hasPrefix("/Users/")
-            && bundlePath.contains("/Applications/")
+        let home = NSHomeDirectory()
+        if bundlePath.hasPrefix("/Applications/") {
+            return true
+        }
+        if bundlePath.hasPrefix("\(home)/Applications/") {
+            return true
+        }
+        return false
     }
 }

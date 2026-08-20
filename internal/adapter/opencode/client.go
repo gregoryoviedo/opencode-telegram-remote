@@ -1,7 +1,6 @@
 package opencode
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,15 +16,14 @@ import (
 )
 
 const (
-	defaultTimeout         = 15 * time.Second
-	defaultReconnectWait   = time.Second
+	defaultTimeout            = 15 * time.Second
 	defaultPromptRequestTimeout = 10 * time.Minute
+	maxResponseBytes          = 32 * 1024 * 1024
 )
 
 type Client struct {
 	baseURL string
 	http    *http.Client
-	stream  *http.Client
 	prompt  *http.Client
 }
 
@@ -110,12 +108,10 @@ func NewClient(baseURL string, httpClient *http.Client) (*Client, error) {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: defaultTimeout}
 	}
-	streamClient := &http.Client{Transport: httpClient.Transport}
 	promptClient := &http.Client{Transport: httpClient.Transport} // no hard cap; controlled via context
 	return &Client{
 		baseURL: parsed.String(),
 		http:    httpClient,
-		stream:  streamClient,
 		prompt:  promptClient,
 	}, nil
 }
@@ -241,94 +237,6 @@ func (c *Client) FileStatus(ctx context.Context, sessionID string) ([]domain.Fil
 	return changes, nil
 }
 
-func (c *Client) SubscribeEvents(ctx context.Context) (<-chan domain.OpenCodeEvent, error) {
-	if _, err := url.ParseRequestURI(c.baseURL); err != nil {
-		return nil, err
-	}
-	output := make(chan domain.OpenCodeEvent)
-	go c.streamEvents(ctx, output)
-	return output, nil
-}
-
-func (c *Client) streamEvents(ctx context.Context, output chan<- domain.OpenCodeEvent) {
-	defer close(output)
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		if err := c.readEventStream(ctx, output); err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(defaultReconnectWait):
-		}
-	}
-}
-
-func (c *Client) readEventStream(ctx context.Context, output chan<- domain.OpenCodeEvent) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/global/event", nil)
-	if err != nil {
-		return err
-	}
-	request.Header.Set("Accept", "text/event-stream")
-	response, err := c.stream.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-		return fmt.Errorf("OpenCode events returned %s: %s", response.Status, strings.TrimSpace(string(body)))
-	}
-
-	scanner := bufio.NewScanner(response.Body)
-	scanner.Buffer(make([]byte, 4096), 1024*1024)
-	var eventType string
-	var data bytes.Buffer
-	flush := func() error {
-		if data.Len() == 0 {
-			eventType = ""
-			return nil
-		}
-		event := domain.OpenCodeEvent{Type: eventType, Data: append([]byte(nil), data.Bytes()...)}
-		select {
-		case output <- event:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-		eventType = ""
-		data.Reset()
-		return nil
-	}
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			if err := flush(); err != nil {
-				return err
-			}
-			continue
-		}
-		if strings.HasPrefix(line, ":") {
-			continue
-		}
-		switch {
-		case strings.HasPrefix(line, "event:"):
-			eventType = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
-		case strings.HasPrefix(line, "data:"):
-			if data.Len() > 0 {
-				data.WriteByte('\n')
-			}
-			data.WriteString(strings.TrimPrefix(line, "data:"))
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-	return flush()
-}
-
 func (c *Client) getJSON(ctx context.Context, path string, target any) error {
 	return c.doJSONWith(c.http, ctx, http.MethodGet, path, nil, target)
 }
@@ -366,7 +274,7 @@ func (c *Client) doJSONWith(client *http.Client, ctx context.Context, method, pa
 	if target == nil || response.StatusCode == http.StatusNoContent {
 		return nil
 	}
-	if err := json.NewDecoder(response.Body).Decode(target); err != nil {
+	if err := json.NewDecoder(io.LimitReader(response.Body, maxResponseBytes)).Decode(target); err != nil {
 		return fmt.Errorf("decode OpenCode %s response: %w", path, err)
 	}
 	return nil

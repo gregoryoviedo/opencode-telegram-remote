@@ -1,9 +1,9 @@
 # OpenCode Remote
 
 Control remoto para una instancia local de `opencode serve` desde Telegram.
-Binario único en Go que lee la configuración desde un archivo `.env`, se
-comunica con Telegram por long polling y expone un navegador recursivo de
-proyectos limitado al workspace que tú elijas.
+Dos artefactos: un binario Go único (`remote-bot`) que hace el trabajo, y
+opcionalmente una app nativa para macOS (`OpenCodeRemote.app`) que vive en la
+barra de menús, guarda la configuración y lanza/para el binario por ti.
 
 La idea es permitirte ejecutar, monitorear y guiar sesiones de OpenCode desde
 el teléfono mientras tu MacBook hace el trabajo real, con cero superficie de
@@ -19,18 +19,22 @@ ataque pública más allá de la API de bots de Telegram.
   rechaza salir del workspace raíz, incluso con symlinks o `..`.
 - **Estado persistente en SQLite** — workspace, proyecto activo, sesión
   activa y estados efímeros de navegación sobreviven a reinicios.
-- **Binario único** — sin daemon, sin GUI, sin firma. Tú lo compilas, lo
-  ejecutas y lo paras con `Ctrl+C`.
+- **App nativa para macOS (opcional)** — menú-barra con toggle, settings con
+  formulario, auto-start al login y logs accesibles desde Finder. Construye
+  un `.app` ad-hoc firmado con `make app` que embebe el binario Go.
+- **Binario único en Go** — sin daemon, sin GUI obligatoria, sin firma.
+  Tú lo compilas, lo ejecutas y lo paras con `Ctrl+C`.
 
 ## Requisitos
 
-- macOS, Linux o Windows.
+- macOS, Linux o Windows para el binario Go.
+- macOS 13.0+ para la app nativa de menú-barra.
 - Go 1.22 o superior.
 - `opencode` instalado localmente (por ejemplo, `brew install anomalyco/tap/opencode`).
 - Un token de bot de Telegram desde `@BotFather`.
 - Tu ID personal de chat desde `@userinfobot`.
 
-## Inicio rápido
+## Inicio rápido (binario Go)
 
 ```bash
 # 1. Compila el binario
@@ -64,7 +68,7 @@ exportar las variables directamente en tu shell.
 | `OPENCODE_BIN`        | `opencode`                                             | Binario a lanzar cuando el bot auto-arranca el servidor. Usa ruta absoluta si no está en `PATH`.         |
 | `OPENCODE_AUTOSTART`  | `false`                                                | Si está activo, el bot lanza `opencode serve --port <p>` en `WORKSPACE_ROOT` al iniciarse.               |
 | `REMOTE_STATE_PATH`   | `<WORKSPACE_ROOT>/.opencode-remote/state.db`           | Ubicación de la base SQLite.                                                                             |
-| `TELEGRAM_API_ROOT`   | (predeterminado de `telebot.v3`)                        | Override del endpoint de la API de Telegram (útil para mirrors o tests).                                |
+| `TELEGRAM_API_ROOT`   | (predeterminado de `telebot.v3`)                        | Override del endpoint de la API de Telegram (útil para mirrors o tests). Se lee del `.env` o del shell. |
 | `TELEGRAM_PROXY_URL`  | _(vacío)_                                               | URL de proxy HTTP para las llamadas a la API de Telegram (formato `http://host:port`).                  |
 | `ENV_FILE`            | `.env` subiendo desde el directorio actual              | Forzar un archivo `.env` específico.                                                                     |
 
@@ -123,91 +127,96 @@ servidor a la vez:
 > `/diff`, `/undo`, texto libre) devuelve un mensaje pidiéndote ejecutar
 > `/init`.
 
-## Automatización del inicio
+## App nativa de macOS
 
-Para no abrir una terminal cada vez que quieras lanzar el bot, tienes varias
-opciones en macOS.
+Además del binario CLI hay un wrapper Swift opcional para macOS que vive
+en la barra de menús (estilo Bluetooth), guarda la configuración en
+`UserDefaults` + un `.env` con permisos `0600`, y arranca/para el bot con
+un toggle.
 
-### Opción 1: Raycast Script Command
-
-1. Compila el binario y déjalo en una ruta estable, por ejemplo
-   `~/bin/remote-bot`.
-2. Crea un archivo
-   `~/.config/raycast/extensions/remote-bot.sh`:
-
-   ```bash
-   #!/usr/bin/env bash
-   # @raycast.title OpenCode Remote
-   # @raycast.mode fullOutput
-   # @raycast.icon 🚀
-   # @raycast.description Inicia el bot de Telegram para OpenCode
-
-   cd "$HOME/dev/opencode-telegram-remote" || exit 1
-   exec ./remote-bot
-   ```
-
-3. `chmod +x ~/.config/raycast/extensions/remote-bot.sh`.
-4. En Raycast, escribe "OpenCode Remote" y ejecútalo. La ventana de Raycast
-   quedará mostrando los logs del bot; ciérrala con `Ctrl+C` para detenerlo.
-
-Para detenerlo, crea un segundo comando:
+### Build
 
 ```bash
-#!/usr/bin/env bash
-# @raycast.title Stop OpenCode Remote
-# @raycast.mode silent
-# @raycast.icon 🛑
-# @raycast.description Detiene el bot de OpenCode Remote
-
-pkill -f "remote-bot"
+make app
 ```
 
-### Opción 2: Atajos de macOS (Shortcuts)
+Esto:
 
-1. Abre la app **Atajos** (`/System/Applications/Shortcuts.app`).
-2. Crea un nuevo atajo llamado "Iniciar OpenCode Remote".
-3. Añade la acción **Ejecutar script de shell** con:
+1. Compila `remote-bot` (`arm64`) y lo coloca en
+   `macos/OpenCodeRemote/Resources/`.
+2. Genera el `MenuBarIcon` monocromo (template) y el `AppIcon.icns` desde
+   `macos/OpenCodeRemote/assets/app-icon.jpeg` con `sips` + Python/Pillow.
+3. Regenera el `.xcodeproj` con XcodeGen.
+4. Compila con `xcodebuild` (`arm64`, sin firma de Apple Developer).
+5. Empaqueta en `dist/OpenCodeRemote.app` y lo firma ad-hoc.
 
-   ```bash
-   cd "$HOME/dev/opencode-telegram-remote" && exec ./remote-bot
-   ```
+Salida: `dist/OpenCodeRemote.app` (~10.5 MB).
 
-4. Marca "Ejecutar como acción rápida" si quieres lanzarlo desde Finder o
-   desde la barra de menús.
-5. Opcional: añade un atajo de teclado (por ejemplo `⌥⌘R`) en los ajustes
-   del atajo.
-6. Crea un segundo atajo "Detener OpenCode Remote" con `pkill -f remote-bot`.
-
-### Opción 3: launchd para inicio silencioso
-
-Si prefieres que el bot corra en segundo plano sin ventana, crea
-`~/Library/LaunchAgents/ai.opencode.remote.plist`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>ai.opencode.remote</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/tu-usuario/bin/remote-bot</string>
-  </array>
-  <key>WorkingDirectory</key>
-  <string>/Users/tu-usuario/dev/opencode-telegram-remote</string>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><false/>
-  <key>StandardOutPath</key><string>/tmp/opencode-remote.log</string>
-  <key>StandardErrorPath</key><string>/tmp/opencode-remote.err</string>
-</dict>
-</plist>
-```
+### Instalación y primer uso
 
 ```bash
-launchctl load ~/Library/LaunchAgents/ai.opencode.remote.plist
-launchctl unload ~/Library/LaunchAgents/ai.opencode.remote.plist
+# Mover a Aplicaciones
+cp -R dist/OpenCodeRemote.app /Applications/
+
+# Quitar la marca de Gatekeeper (porque no tiene Developer ID)
+xattr -dr com.apple.quarantine /Applications/OpenCodeRemote.app
+
+# Abrir
+open /Applications/OpenCodeRemote.app
 ```
+
+Aparece un icono en la barra de menús. **Click izquierdo** abre el popover
+con un toggle. **Click derecho** abre menú contextual.
+
+**Primera vez**: el toggle está deshabilitado. Click en **Settings…**, llena
+`WORKSPACE_ROOT`, `TELEGRAM_BOT_TOKEN`, `ALLOWED_CHAT_ID`. Al guardar, la app
+escribe `~/Library/Application Support/OpenCodeRemote/.env` con permisos
+`0600` y a partir de ahí el toggle funciona.
+
+### Auto-inicio al login
+
+En Settings marcá la casilla "Iniciar OpenCode Remote al arrancar macOS".
+La app llama `SMAppService.mainApp.register()` y aparece en *Ajustes del
+sistema → General → Ítems de inicio*. Solo funciona si la app vive en
+`/Applications/` o `~/Applications/`.
+
+### Cómo funciona el toggle
+
+- **Apagado → click**: arranca `Resources/remote-bot` con env vars
+  (`ENV_FILE=…/.env`, `REMOTE_STATE_PATH=…/state.db`, `GIN_MODE=release`,
+  y opcionalmente `TELEGRAM_API_ROOT` y `TELEGRAM_PROXY_URL` si los
+  llenaste en Settings). El binario lee el `.env` y entra en long-polling
+  de Telegram.
+- **Encendido → click**: `terminate()` (SIGTERM), espera 5 s, `SIGKILL` si
+  no salió.
+- **Cambios en Settings**: no rearrancan el bot en caliente; aparece un
+  banner "Los cambios aplican al próximo inicio". Restart manual desde el
+  toggle.
+
+### Ubicaciones
+
+| Recurso | Ruta |
+|---|---|
+| Settings (UserDefaults) | `~/Library/Preferences/ai.opencode.remote.plist` |
+| `.env` para el bot | `~/Library/Application Support/OpenCodeRemote/.env` (`chmod 600`) |
+| State DB (SQLite) | `~/Library/Application Support/OpenCodeRemote/state.db` |
+| Logs | `~/Library/Logs/OpenCodeRemote/bot.log` |
+
+### Prerrequisitos del entorno de build
+
+- macOS con **Xcode** y **Xcode command-line tools** (`xcode-select --install`).
+- **XcodeGen** (`brew install xcodegen` si falta).
+- **Go** 1.22+ en `PATH`.
+- **Python 3** con **Pillow** (`pip3 install Pillow`) para regenerar
+  los iconos monocromos. Requerido solo si corres `make icons`.
+
+## Automatización del inicio (CLI sin wrapper Swift)
+
+Si prefieres seguir con el binario Go puro y automatizar su arranque en
+macOS, las opciones documentadas originalmente siguen vigentes
+(Raycast Script Command, Atajos de macOS o `launchd`). Los detalles y
+plantillas están en el historial del repo; el wrapper Swift cubre
+el mismo caso de uso con menos fricción.
 
 ## Seguridad
 
@@ -220,6 +229,9 @@ launchctl unload ~/Library/LaunchAgents/ai.opencode.remote.plist
   `WORKSPACE_ROOT`.
 - El token se lee del `.env` al arrancar. SQLite solo guarda proyecto
   activo, sesión activa y estado efímero — nunca contenido de prompts.
+- Cuando se usa el wrapper Swift, el `.env` regenerado se escribe con
+  permisos `0600` y vive dentro de `~/Library/Application Support/`,
+  accesible solo al usuario actual.
 
 Consulta `SECURITY.md` para el modelo de confianza completo.
 
@@ -229,15 +241,20 @@ Hexagonal / Clean Architecture en Go, con tres capas concéntricas:
 
 ```text
 internal/
-  domain/      entidades (Project, Session, RuntimeState, NavigationState)
-               y puertos (WorkspaceFS, StateRepository, OpenCodeClient)
-  usecase/     navegador del workspace, navegación, bot handler
+  domain/      entidades (Project, Session, RuntimeState, NavigationState,
+               FileChange, BotButton, BotResponse) y puertos
+               (WorkspaceFS, StateRepository, NavigationRepository,
+               OpenCodeClient, BotHandler, OpenCodeServerManager)
+  usecase/     navegador del workspace, navegación, handler de comandos
+               (Handler) con sentinels de error (ErrNavigationNotFound,
+               ErrUnauthorizedNavigation, ErrServerNotRunning, …)
   adapter/
-    opencode/  cliente REST + SSE
-    telegram/  long polling con telebot.v3, whitelist, callbacks
-    storage/   repositorio SQLite
+    opencode/  cliente REST para opencode serve + manager de subprocess
+    telegram/  long polling con telebot.v3, whitelist, callbacks,
+               parser markdown → HTML
+    storage/   repositorio SQLite (WAL, una conexión)
     workspace/ adaptador de filesystem
-    config/    cargador de .env
+    config/    cargador de .env (godotenv)
 cmd/remote-bot/  composition root
 ```
 
@@ -245,6 +262,10 @@ La capa de dominio no tiene dependencias externas; todo lo demás va detrás
 de interfaces declaradas por el dominio. Esto permite que los tests
 sustituyan SQLite por un store en memoria y OpenCode por un servidor
 `httptest`.
+
+Sobre el binario, en macOS, vive opcionalmente la app nativa
+`OpenCodeRemote.app` (SwiftUI + AppKit) que actúa como launcher con UI,
+persistencia y supervisión de logs.
 
 Consulta `docs/DESIGN.md` para el documento de diseño completo.
 
@@ -261,6 +282,12 @@ go vet ./...
 go build -o remote-bot ./cmd/remote-bot
 ```
 
+Para construir el wrapper Swift:
+
+```bash
+make app
+```
+
 El repositorio conserva el binario `remote-bot` compilado en la raíz por
 comodidad (es el único artefacto que produce el proyecto). Bórralo antes de
 publicar una rama si no quieres enviar el binario compilado junto con el
@@ -270,23 +297,26 @@ código fuente.
 
 ```text
 .
-├── cmd/remote-bot/        punto de entrada
+├── cmd/remote-bot/              punto de entrada Go
 ├── internal/
-│   ├── adapter/           OpenCode, Telegram, SQLite, filesystem
-│   ├── config/            cargador de .env
-│   ├── domain/            entidades y puertos
-│   └── usecase/           navegador del workspace, navegación, bot handler
+│   ├── adapter/                 OpenCode, Telegram, SQLite, filesystem
+│   ├── config/                  cargador de .env
+│   ├── domain/                  entidades y puertos
+│   └── usecase/                 navegador del workspace, navegación, handler
+├── macos/
+│   └── OpenCodeRemote/          wrapper Swift (status bar, settings, login item)
 ├── docs/
-│   ├── DESIGN.md          arquitectura y decisiones
-│   └── PRODUCT.md         alcance y hoja de ruta
+│   ├── DESIGN.md                arquitectura y decisiones
+│   └── PRODUCT.md               alcance y hoja de ruta
 ├── .env.example
 ├── CONTRIBUTING.md
 ├── LICENSE
+├── Makefile                     build del wrapper macOS
 ├── README.md
 ├── SECURITY.md
 ├── go.mod
 ├── go.sum
-└── remote-bot             binario compilado (arm64)
+└── remote-bot                   binario compilado (arm64)
 ```
 
 ## Licencia

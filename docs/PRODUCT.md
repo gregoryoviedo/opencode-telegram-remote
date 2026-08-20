@@ -9,6 +9,10 @@ OpenCode Remote turns Telegram into a thin remote control for a local
 `opencode serve` instance. The bot is the only surface you interact with on
 your phone; OpenCode keeps doing the work locally on your Mac.
 
+A small Swift menu-bar wrapper for macOS is shipped alongside the bot so
+that the same single-user workflow can be launched, supervised, and
+configured from the system tray without bespoke shell glue.
+
 ## Target scenario
 
 1. You work on a project locally with OpenCode (TUI or desktop).
@@ -19,9 +23,18 @@ your phone; OpenCode keeps doing the work locally on your Mac.
 5. You check progress, run `/diff` and `/undo`, or jump back into `/sessions`.
 6. When you return home, the local machine has already done the work.
 
+On macOS the wrapper is the convenient launcher:
+
+1. First run: open the app, fill `Settings…`, save.
+2. Subsequent runs: the icon in the menu bar shows whether the bot is
+   running; click toggles it, right-click opens the menu.
+3. The "Iniciar al login" toggle makes the wrapper start itself at boot.
+
 ## Functional scope
 
 ### Implemented
+
+#### Go bot (`remote-bot`)
 
 - Long polling against `api.telegram.org` with a strict `ALLOWED_CHAT_ID`
   whitelist.
@@ -38,24 +51,63 @@ your phone; OpenCode keeps doing the work locally on your Mac.
   down the subprocess for you via `/init`, `/projects → Usar esta carpeta`
   and `OPENCODE_AUTOSTART`.
 - `TELEGRAM_PROXY_URL` and `TELEGRAM_API_ROOT` for restricted networks.
+  Both are parsed from the environment (or `.env`), so the Swift wrapper
+  can pass them as real `proc.environment` values when launching the bot.
 - Clean shutdown on `SIGINT` / `SIGTERM`.
+- Sentinel errors in `domain/errors.go` so every recoverable failure can
+  be matched programmatically.
+
+#### macOS wrapper (`OpenCodeRemote.app`)
+
+- Menu-bar status icon with template rendering (auto-adapts to dark /
+  light menu bars).
+- Popover with a Bluetooth-style toggle for start / stop.
+- Context menu (right-click) with status label, toggle, *Settings…*,
+  *Abrir registro*, *Salir*.
+- SwiftUI Settings window with: `WORKSPACE_ROOT` (with folder picker),
+  `TELEGRAM_BOT_TOKEN`, `ALLOWED_CHAT_ID`, `OPENCODE_PORT` (stepper),
+  `OPENCODE_BIN`, `OPENCODE_AUTOSTART`, `REMOTE_STATE_PATH`,
+  `TELEGRAM_API_ROOT`, `TELEGRAM_PROXY_URL`.
+- Persistence in `UserDefaults` plus a `chmod 600` `.env` regenerated on
+  every save inside `~/Library/Application Support/OpenCodeRemote/`.
+- Logs at `~/Library/Logs/OpenCodeRemote/bot.log`, accessible from the
+  popover menu.
+- Auto-start at login via `SMAppService.mainApp` (Settings toggle).
+- arm64-only build pipeline (`make app`) that compiles the Go binary,
+  generates the icon set with `sips` + Pillow, generates the
+  `xcodeproj` with XcodeGen, and produces an ad-hoc-signed `.app` in
+  `dist/`.
 
 ### Out of scope (today)
 
-- Any GUI / menu bar app — the project is intentionally CLI-only.
 - Multi-user access. The whitelist is a single ID.
 - Concurrent interactive flows. One Telegram chat at a time.
 - Multimedia (voice, image, document attachments).
+- Universal macOS binary (arm64-only; no Intel slice).
 - Scheduled tasks.
 - i18n.
+- SwiftUI tests (the Go side has full coverage; the wrapper relies on
+  manual QA).
+- Sandboxing or notarisation (the `.app` is ad-hoc signed and needs
+  `xattr -dr com.apple.quarantine` on first launch).
+- IPC beyond `Process` spawning between the Swift wrapper and the Go
+  bot. The wrapper does not parse the bot's output.
 
 ## Trust boundaries
 
-- The Telegram Bot API is the only network surface the bot depends on.
-- `opencode serve` is assumed to be reachable on `127.0.0.1:<OPENCODE_PORT>`.
-- The bot token and chat ID live in `.env` (or shell env), never in SQLite.
+- The Telegram Bot API is the only network surface the Go bot depends
+  on.
+- `opencode serve` is assumed to be reachable on
+  `127.0.0.1:<OPENCODE_PORT>`.
+- The bot token and chat ID live in `.env` (or shell env), never in
+  SQLite.
 - SQLite stores the active project, active session and short-lived
   navigation state only.
+- When the macOS wrapper is used, the `.env` it regenerates is written
+  with mode `0600` inside `~/Library/Application Support/`, accessible
+  only to the current user.
+- The Swift wrapper never makes network calls. It only spawns the Go
+  binary and supervises its lifecycle.
 
 ## Open task list
 
@@ -70,6 +122,9 @@ Items in priority order, intentionally small and incremental:
 7. Voice transcription via a Whisper-compatible API (opt-in).
 8. `TELEGRAM_FORCE_IPV4` and richer proxy options for restricted networks
    (today only `TELEGRAM_PROXY_URL` is supported).
+9. Swift unit tests for `ConfigStore`, `AppState` and
+   `LoginItemManager` to lock in the wrapper behaviour without a
+   manual QA cycle.
 
 ## Change policy
 

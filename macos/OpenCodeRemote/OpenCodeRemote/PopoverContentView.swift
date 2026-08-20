@@ -7,21 +7,16 @@ struct PopoverContentView: View {
     let onOpenLog: () -> Void
     let onQuit: () -> Void
 
-    private var uptimeText: String? {
-        guard case .running = appState.status, let started = appState.startedAt else { return nil }
-        let interval = Date().timeIntervalSince(started)
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
-        formatter.unitsStyle = .abbreviated
-        formatter.maximumUnitCount = 2
-        return formatter.string(from: interval)
-    }
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             header
             Divider()
             statusSection
+                .onReceive(timer) { _ in
+                    _ = self.uptimeText
+                }
             if let error = appState.lastError {
                 Text(error)
                     .font(.caption)
@@ -36,6 +31,16 @@ struct PopoverContentView: View {
         }
         .padding(16)
         .frame(width: 300)
+    }
+
+    private var uptimeText: String? {
+        guard case .running = appState.status, let started = appState.startedAt else { return nil }
+        let interval = Date().timeIntervalSince(started)
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return formatter.string(from: interval)
     }
 
     private var header: some View {
@@ -62,6 +67,7 @@ struct PopoverContentView: View {
                 Text("Tiempo activo \(uptime)")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                    .id("uptime-\(uptime)")
             }
             if !appState.configuration.isValid {
                 if let msg = appState.configuration.validationMessage {

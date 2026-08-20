@@ -22,6 +22,12 @@ final class StatusBarController: NSObject {
         updateIcon(for: appState.status, running: appState.status.isRunning)
     }
 
+    deinit {
+        if let token = stateSink {
+            NotificationCenter.default.removeObserver(token)
+        }
+    }
+
     private func configureStatusItem() {
         guard let button = statusItem.button else { return }
         button.image = NSImage(named: "MenuBarIcon")
@@ -144,7 +150,11 @@ final class StatusBarController: NSObject {
         if botController.isRunning {
             botController.stop()
         } else {
-            botController.start()
+            let cfg = appState.configuration
+            botController.start(
+                telegramAPIRoot: cfg.telegramAPIRoot,
+                telegramProxyURL: cfg.telegramProxyURL
+            )
         }
     }
 

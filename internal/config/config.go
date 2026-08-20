@@ -15,6 +15,8 @@ type Config struct {
 	WorkspaceRoot   string
 	StatePath       string
 	TelegramToken   string
+	TelegramAPIRoot string
+	TelegramProxy   string
 	AllowedChatID   int64
 	OpenCodePort    int
 	OpenCodeBin     string
@@ -23,7 +25,7 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	config := &Config{
+	cfg := &Config{
 		OpenCodePort: 4096,
 		OpenCodeBin:  "opencode",
 		AutoStart:    false,
@@ -33,24 +35,27 @@ func Load() (*Config, error) {
 		if err := godotenv.Overload(path); err != nil {
 			return nil, fmt.Errorf("load env file %q: %w", path, err)
 		}
-		config.EnvFile = path
+		cfg.EnvFile = path
 	}
 
-	config.WorkspaceRoot = os.Getenv("WORKSPACE_ROOT")
-	if config.WorkspaceRoot == "" {
+	cfg.WorkspaceRoot = os.Getenv("WORKSPACE_ROOT")
+	if cfg.WorkspaceRoot == "" {
 		return nil, errors.New("WORKSPACE_ROOT is required (set it in .env or environment)")
 	}
-	config.WorkspaceRoot = filepath.Clean(config.WorkspaceRoot)
+	cfg.WorkspaceRoot = filepath.Clean(cfg.WorkspaceRoot)
 
-	config.StatePath = os.Getenv("REMOTE_STATE_PATH")
-	if config.StatePath == "" {
-		config.StatePath = filepath.Join(config.WorkspaceRoot, ".opencode-remote", "state.db")
+	cfg.StatePath = os.Getenv("REMOTE_STATE_PATH")
+	if cfg.StatePath == "" {
+		cfg.StatePath = filepath.Join(cfg.WorkspaceRoot, ".opencode-remote", "state.db")
 	}
 
-	config.TelegramToken = os.Getenv("TELEGRAM_BOT_TOKEN")
-	if config.TelegramToken == "" {
+	cfg.TelegramToken = os.Getenv("TELEGRAM_BOT_TOKEN")
+	if cfg.TelegramToken == "" {
 		return nil, errors.New("TELEGRAM_BOT_TOKEN is required")
 	}
+
+	cfg.TelegramAPIRoot = strings.TrimSpace(os.Getenv("TELEGRAM_API_ROOT"))
+	cfg.TelegramProxy = strings.TrimSpace(os.Getenv("TELEGRAM_PROXY_URL"))
 
 	chatIDRaw := os.Getenv("ALLOWED_CHAT_ID")
 	if chatIDRaw == "" {
@@ -60,18 +65,18 @@ func Load() (*Config, error) {
 	if err != nil || chatID == 0 {
 		return nil, fmt.Errorf("ALLOWED_CHAT_ID must be a non-zero integer: %q", chatIDRaw)
 	}
-	config.AllowedChatID = chatID
+	cfg.AllowedChatID = chatID
 
 	if raw := os.Getenv("OPENCODE_PORT"); raw != "" {
 		port, err := strconv.Atoi(raw)
 		if err != nil || port < 1 || port > 65535 {
 			return nil, fmt.Errorf("OPENCODE_PORT must be between 1 and 65535: %q", raw)
 		}
-		config.OpenCodePort = port
+		cfg.OpenCodePort = port
 	}
 
 	if raw := os.Getenv("OPENCODE_BIN"); raw != "" {
-		config.OpenCodeBin = raw
+		cfg.OpenCodeBin = raw
 	}
 
 	if raw := os.Getenv("OPENCODE_AUTOSTART"); raw != "" {
@@ -79,10 +84,10 @@ func Load() (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("OPENCODE_AUTOSTART must be a boolean: %q", raw)
 		}
-		config.AutoStart = parsed
+		cfg.AutoStart = parsed
 	}
 
-	return config, nil
+	return cfg, nil
 }
 
 func parseBool(raw string) (bool, error) {

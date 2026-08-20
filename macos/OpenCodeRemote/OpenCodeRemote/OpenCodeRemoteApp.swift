@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import Combine
 
 @main
 struct OpenCodeRemoteApp {
@@ -16,7 +15,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var appState: AppState!
     private var botController: BotController!
     private var statusBarController: StatusBarController!
-    private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appState = AppState()
@@ -27,15 +25,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         statusBarController = StatusBarController(appState: appState, botController: botController)
-
-        botController.stateSubject
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] status in
-                self?.appState.status = status
-                self?.appState.lastError = self?.botController.lastError
-                NotificationCenter.default.post(name: .botStateChanged, object: status)
-            }
-            .store(in: &cancellables)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -43,16 +32,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleStatusUpdate(_ status: BotStatus) {
+        appState.status = status
+        appState.lastError = botController.lastError
+        NotificationCenter.default.post(name: .botStateChanged, object: status)
         switch status {
         case .running:
             appState.startedAt = Date()
             appState.lastError = nil
         case .stopped, .crashed:
             appState.startedAt = nil
-            appState.lastError = botController.lastError
-        case .stopping:
-            break
-        case .starting:
+        case .stopping, .starting:
             break
         }
     }

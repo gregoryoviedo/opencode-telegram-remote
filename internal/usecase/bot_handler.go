@@ -11,7 +11,7 @@ import (
 	"github.com/opencode-remote/opencode-telegram-remote/internal/domain"
 )
 
-type BotHandler struct {
+type Handler struct {
 	navigation    *NavigationService
 	state         domain.StateRepository
 	opencode      domain.OpenCodeClient
@@ -20,8 +20,8 @@ type BotHandler struct {
 	workspaceRoot string
 }
 
-func NewBotHandler(navigation *NavigationService, state domain.StateRepository, opencode domain.OpenCodeClient, server domain.OpenCodeServerManager, browser *WorkspaceBrowser) *BotHandler {
-	return &BotHandler{
+func NewHandler(navigation *NavigationService, state domain.StateRepository, opencode domain.OpenCodeClient, server domain.OpenCodeServerManager, browser *WorkspaceBrowser) *Handler {
+	return &Handler{
 		navigation:    navigation,
 		state:         state,
 		opencode:      opencode,
@@ -32,10 +32,10 @@ func NewBotHandler(navigation *NavigationService, state domain.StateRepository, 
 }
 
 // StateForTest exposes the underlying StateRepository to tests in the same
-// package. Production code must depend on the BotHandler port instead.
-func (h *BotHandler) StateForTest() domain.StateRepository { return h.state }
+// package. Production code must depend on the Handler port instead.
+func (h *Handler) StateForTest() domain.StateRepository { return h.state }
 
-func (h *BotHandler) HandleCommand(ctx context.Context, chatID int64, command string, args []string) (domain.BotResponse, error) {
+func (h *Handler) HandleCommand(ctx context.Context, chatID int64, command string, args []string) (domain.BotResponse, error) {
 	switch command {
 	case "/start", "/help":
 		return helpResponse(), nil
@@ -74,9 +74,9 @@ func helpResponse() domain.BotResponse {
 	}, "\n")}
 }
 
-const telegramMaxMessageLen = 4000
+const telegramMaxMessageLen = 4096
 
-func (h *BotHandler) HandleText(ctx context.Context, _ int64, text string) (domain.BotResponse, error) {
+func (h *Handler) HandleText(ctx context.Context, _ int64, text string) (domain.BotResponse, error) {
 	if !h.server.StartedSubprocess() {
 		return domain.BotResponse{Text: "El servidor OpenCode está apagado. Ejecuta /init."}, nil
 	}
@@ -104,7 +104,7 @@ func truncateForTelegram(text string) string {
 	return text[:telegramMaxMessageLen] + "\n\n... (truncado, sigue en OpenCode)"
 }
 
-func (h *BotHandler) HandleCallback(ctx context.Context, chatID int64, data string) (domain.BotResponse, error) {
+func (h *Handler) HandleCallback(ctx context.Context, chatID int64, data string) (domain.BotResponse, error) {
 	parts := strings.SplitN(data, "|", 3)
 	if len(parts) < 2 {
 		return expiredNavigation(), nil
@@ -155,7 +155,8 @@ func (h *BotHandler) HandleCallback(ctx context.Context, chatID int64, data stri
 		if len(parts) != 3 {
 			return expiredNavigation(), nil
 		}
-		if parts[1] == "" || mustParseChat(parts[1]) != chatID {
+		parsed, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil || parsed != chatID {
 			return expiredNavigation(), nil
 		}
 		if !h.server.StartedSubprocess() {
@@ -189,11 +190,6 @@ func (h *BotHandler) HandleCallback(ctx context.Context, chatID int64, data stri
 	}
 }
 
-func mustParseChat(value string) int64 {
-	parsed, _ := strconv.ParseInt(value, 10, 64)
-	return parsed
-}
-
 func directoryResponse(state domain.NavigationState, entries []domain.DirectoryEntry) domain.BotResponse {
 	path := state.CurrentRelativePath
 	if path == "" {
@@ -210,7 +206,7 @@ func directoryResponse(state domain.NavigationState, entries []domain.DirectoryE
 	return response
 }
 
-func (h *BotHandler) init(ctx context.Context, args []string) (domain.BotResponse, error) {
+func (h *Handler) init(ctx context.Context, args []string) (domain.BotResponse, error) {
 	target := ""
 	if len(args) > 0 {
 		target = args[0]
@@ -234,7 +230,7 @@ func (h *BotHandler) init(ctx context.Context, args []string) (domain.BotRespons
 	return domain.BotResponse{Text: fmt.Sprintf("Servidor arrancado en `%s`. Usa /sessions para abrir o crear una sesión.", workingDir)}, nil
 }
 
-func (h *BotHandler) resolveInitTarget(ctx context.Context, override string) (string, error) {
+func (h *Handler) resolveInitTarget(ctx context.Context, override string) (string, error) {
 	if override != "" {
 		if filepath.IsAbs(override) {
 			return "", domain.ErrOutsideWorkspace
@@ -261,10 +257,10 @@ func (h *BotHandler) resolveInitTarget(ctx context.Context, override string) (st
 	if h.workspaceRoot != "" {
 		return h.workspaceRoot, nil
 	}
-	return "", errors.New("no hay workspace configurado (WORKSPACE_ROOT) ni proyecto seleccionado")
+	return "", domain.ErrWorkspaceNotConfigured
 }
 
-func (h *BotHandler) bindServer(ctx context.Context, absolutePath string) (domain.BotResponse, error) {
+func (h *Handler) bindServer(ctx context.Context, absolutePath string) (domain.BotResponse, error) {
 	if err := h.server.Start(ctx, absolutePath); err != nil {
 		return domain.BotResponse{Text: "Carpeta guardada, pero no se pudo rearrancar el servidor: " + err.Error(), Edit: true}, nil
 	}
@@ -286,7 +282,7 @@ func relativeUnderWorkspace(workspaceRoot, absolutePath string) string {
 	return filepath.ToSlash(rel)
 }
 
-func (h *BotHandler) status(ctx context.Context) (domain.BotResponse, error) {
+func (h *Handler) status(ctx context.Context) (domain.BotResponse, error) {
 	state, err := h.state.LoadRuntimeState(ctx)
 	if err != nil {
 		return domain.BotResponse{}, err
@@ -310,7 +306,7 @@ func (h *BotHandler) status(ctx context.Context) (domain.BotResponse, error) {
 		health.Healthy, health.Version, h.server.WorkingDir(), project, session)}, nil
 }
 
-func (h *BotHandler) sessions(ctx context.Context, chatID int64, args []string) (domain.BotResponse, error) {
+func (h *Handler) sessions(ctx context.Context, chatID int64, args []string) (domain.BotResponse, error) {
 	if !h.server.StartedSubprocess() {
 		return domain.BotResponse{Text: "El servidor OpenCode está apagado. Ejecuta /init primero."}, nil
 	}
@@ -389,7 +385,7 @@ func orDefault(value, fallback string) string {
 	return value
 }
 
-func (h *BotHandler) diff(ctx context.Context) (domain.BotResponse, error) {
+func (h *Handler) diff(ctx context.Context) (domain.BotResponse, error) {
 	if !h.server.StartedSubprocess() {
 		return domain.BotResponse{Text: "El servidor OpenCode está apagado. Ejecuta /init primero."}, nil
 	}
@@ -414,7 +410,7 @@ func (h *BotHandler) diff(ctx context.Context) (domain.BotResponse, error) {
 	return domain.BotResponse{Text: text.String()}, nil
 }
 
-func (h *BotHandler) undo(ctx context.Context) (domain.BotResponse, error) {
+func (h *Handler) undo(ctx context.Context) (domain.BotResponse, error) {
 	if !h.server.StartedSubprocess() {
 		return domain.BotResponse{Text: "El servidor OpenCode está apagado. Ejecuta /init primero."}, nil
 	}
@@ -436,7 +432,7 @@ func expiredNavigation() domain.BotResponse {
 }
 
 func navigationError(err error) domain.BotResponse {
-	if errors.Is(err, domain.ErrNavigationNotFound) {
+	if errors.Is(err, domain.ErrNavigationNotFound) || errors.Is(err, domain.ErrUnauthorizedNavigation) {
 		return expiredNavigation()
 	}
 	return domain.BotResponse{Text: "No se pudo completar la navegación.", Edit: true}

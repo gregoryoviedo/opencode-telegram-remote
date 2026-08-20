@@ -176,8 +176,11 @@ struct SettingsView: View {
             let digits = text.filter { $0.isNumber || $0 == "-" }
             allowedChatID = String(digits.prefix(20))
         case .port:
-            if let p = Int(text.filter { $0.isNumber }), p >= 1, p <= 65535 {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let p = Int(trimmed), p >= 1, p <= 65535 {
                 openCodePort = p
+            } else if !trimmed.isEmpty {
+                errorMessage = "OPENCODE_PORT debe ser un entero entre 1 y 65535."
             }
         case .bin:
             openCodeBin = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -207,6 +210,7 @@ struct SettingsView: View {
         }
         if let msg = cfg.validationMessage {
             errorMessage = msg
+            savedAt = nil
             return
         }
         do {
@@ -224,6 +228,7 @@ struct SettingsView: View {
             onClose()
         } catch {
             errorMessage = error.localizedDescription
+            savedAt = nil
         }
     }
 }

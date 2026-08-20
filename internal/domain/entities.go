@@ -39,14 +39,6 @@ type NavigationState struct {
 	CreatedAt           time.Time
 }
 
-type AppConfig struct {
-	WorkspaceRoot string
-	StatePath     string
-	TelegramToken string
-	AllowedChatID int64
-	OpenCodePort  int
-}
-
 type HealthStatus struct {
 	Healthy bool
 	Version string
@@ -55,13 +47,6 @@ type HealthStatus struct {
 type FileChange struct {
 	Path   string
 	Status string
-}
-
-type OpenCodeEvent struct {
-	Type      string
-	ProjectID string
-	SessionID string
-	Data      []byte
 }
 
 type BotButton struct {

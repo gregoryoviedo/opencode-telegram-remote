@@ -123,30 +123,3 @@ func TestClientRevertPicksLastUserMessage(t *testing.T) {
 		t.Fatalf("revert: %v", err)
 	}
 }
-
-func TestClientReadsSSEEvents(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, "event: session.updated\ndata: {\"sessionID\":\"s1\"}\n\n")
-	}))
-	defer server.Close()
-
-	client, err := opencode.NewClient(server.URL, &http.Client{Timeout: time.Second})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	events, err := client.SubscribeEvents(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case event := <-events:
-		if event.Type != "session.updated" || string(event.Data) != ` {"sessionID":"s1"}` {
-			t.Fatalf("event = %#v", event)
-		}
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for SSE event")
-	}
-}
