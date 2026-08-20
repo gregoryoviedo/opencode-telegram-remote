@@ -28,9 +28,9 @@ type Manager struct {
 	probeURL string
 	logger   *slog.Logger
 
-	mu       sync.Mutex
-	cmd      *exec.Cmd
-	cwd      string
+	mu  sync.Mutex
+	cmd *exec.Cmd
+	cwd string
 }
 
 type ManagerOptions struct {

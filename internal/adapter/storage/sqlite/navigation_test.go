@@ -2,6 +2,7 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func TestRepositoryExpiresNavigationState(t *testing.T) {
 	if err := repository.SaveNavigation(context.Background(), state); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repository.GetNavigation(context.Background(), state.ID); err != domain.ErrNavigationNotFound {
+	if _, err := repository.GetNavigation(context.Background(), state.ID); !errors.Is(err, domain.ErrNavigationNotFound) {
 		t.Fatalf("GetNavigation error = %v, want ErrNavigationNotFound", err)
 	}
 }

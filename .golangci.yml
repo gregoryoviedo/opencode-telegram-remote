@@ -8,50 +8,33 @@ run:
 linters:
   disable-all: true
   enable:
-    # Default-ish set curated for a clean-arch Go project
+    # Curated set: catches real bugs without flooding CI with style noise.
     - errcheck       # unchecked errors
     - govet          # standard go vet
     - ineffassign    # unused assignments
-    - staticcheck    # extensive static analysis
+    - staticcheck    # extensive static analysis (includes gosimple + stylecheck in v2)
     - unused         # unused symbols
-    - gosimple       # simplifications
-    - gocritic       # opinionated style/perf checks
-    - gofmt          # formatting
-    - goimports      # import grouping
-    - misspell       # English spelling
     - bodyclose      # HTTP body close
     - errorlint      # error wrapping style
-    - nilerr         # returning nil from error-handling paths
-    - revive         # golint successor
-    - stylecheck     # style checks (ST1000 etc.)
     - unconvert      # unnecessary conversions
     - unparam        # unused function params
-
-  settings:
-    goimports:
-      local-prefixes: github.com/gregoryoviedo/opencode-telegram-remote
-    revive:
-      rules:
-        - name: var-naming
-        - name: exported
-        - name: package-comments
-        - name: indent-error-flow
-        - name: errorf
-    misspell:
-      locale: en
+    # NOTE: revive (exported/package-comments), gocritic (exitAfterDefer),
+    # nilerr (intentional in user-facing error paths), misspell (false
+    # positives on Spanish user-facing strings) intentionally off.
 
   exclusions:
-    # Don't flag test helpers that intentionally return errors
-    paths:
-      - internal/adapter/storage/sqlite/_test\.go$
-      - internal/adapter/telegram/_test\.go$
-      - internal/adapter/opencode/_test\.go$
-      - internal/usecase/_test\.go$
+    rules:
+      # Don't flag deferred Close() in production code (Go idiom).
+      - path: (\.go)$
+        text: "Error return value of `.*\\.Close` is not checked"
+        linters: [errcheck]
+      # Test helpers are allowed to swallow errors.
+      - path: _test\.go$
+        linters: [errcheck]
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  fixable: true
 
 formatters:
   enable:

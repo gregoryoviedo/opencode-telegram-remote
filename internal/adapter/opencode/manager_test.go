@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -32,6 +33,27 @@ func portFromURL(t *testing.T, rawURL string) int {
 	return port
 }
 
+// buildFakeBin compiles a stand-in for the `opencode` binary so the manager
+// tests don't require the real CLI in $PATH (CI runners don't ship it).
+func buildFakeBin(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "fake-opencode")
+	src, err := os.ReadFile("testdata/fakebin.go")
+	if err != nil {
+		t.Fatalf("read fakebin source: %v", err)
+	}
+	srcPath := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(srcPath, src, 0o600); err != nil {
+		t.Fatalf("write fakebin source: %v", err)
+	}
+	cmd := exec.Command("go", "build", "-o", bin, srcPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("build fakebin: %v\n%s", err, out)
+	}
+	return bin
+}
+
 func TestManagerStartInWorkingDirAndStops(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/global/health") {
@@ -43,8 +65,9 @@ func TestManagerStartInWorkingDirAndStops(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	bin := buildFakeBin(t)
 	manager := opencode.NewManager(opencode.ManagerOptions{
-		Bin:    "opencode",
+		Bin:    bin,
 		Port:   portFromURL(t, srv.URL),
 		Logger: newDiscardLogger(),
 	})
@@ -77,8 +100,9 @@ func TestManagerStartInWorkingDirAndStops(t *testing.T) {
 }
 
 func TestManagerStartRejectsEmptyWorkingDir(t *testing.T) {
+	bin := buildFakeBin(t)
 	manager := opencode.NewManager(opencode.ManagerOptions{
-		Bin:    "opencode",
+		Bin:    bin,
 		Port:   4096,
 		Logger: newDiscardLogger(),
 	})
@@ -88,8 +112,9 @@ func TestManagerStartRejectsEmptyWorkingDir(t *testing.T) {
 }
 
 func TestManagerStartRejectsNonDirectory(t *testing.T) {
+	bin := buildFakeBin(t)
 	manager := opencode.NewManager(opencode.ManagerOptions{
-		Bin:    "opencode",
+		Bin:    bin,
 		Port:   4096,
 		Logger: newDiscardLogger(),
 	})

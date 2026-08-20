@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	defaultTimeout            = 15 * time.Second
+	defaultTimeout              = 15 * time.Second
 	defaultPromptRequestTimeout = 10 * time.Minute
-	maxResponseBytes          = 32 * 1024 * 1024
+	maxResponseBytes            = 32 * 1024 * 1024
 )
 
 type Client struct {
@@ -57,9 +57,9 @@ type revertPayload struct {
 // API response shapes. Only the fields we use are extracted.
 
 type projectDTO struct {
-	ID        string `json:"id"`
-	Worktree  string `json:"worktree"`
-	Time      struct {
+	ID       string `json:"id"`
+	Worktree string `json:"worktree"`
+	Time     struct {
 		Updated int64 `json:"updated"`
 	} `json:"time"`
 }
@@ -94,10 +94,10 @@ type messageDTO struct {
 }
 
 type fileChangeDTO struct {
-	Path   string `json:"path"`
-	Added  string `json:"added,omitempty"`
+	Path    string `json:"path"`
+	Added   string `json:"added,omitempty"`
 	Removed string `json:"removed,omitempty"`
-	Status string `json:"status,omitempty"`
+	Status  string `json:"status,omitempty"`
 }
 
 func NewClient(baseURL string, httpClient *http.Client) (*Client, error) {

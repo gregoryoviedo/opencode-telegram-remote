@@ -44,9 +44,7 @@ func markdownToTelegramHTML(text string) string {
 		inner := strings.TrimPrefix(match, "```")
 		inner = strings.TrimSuffix(inner, "```")
 		inner = strings.TrimRight(inner, "\n")
-		if strings.HasPrefix(inner, "\n") {
-			inner = inner[1:]
-		}
+		inner = strings.TrimPrefix(inner, "\n")
 		if idx := strings.Index(inner, "\n"); idx > 0 && idx < 32 && !strings.Contains(inner[:idx], "\n") {
 			inner = inner[idx+1:]
 		}

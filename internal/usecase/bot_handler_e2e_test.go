@@ -29,9 +29,9 @@ func (f *fakeServer) Start(_ context.Context, workingDir string) error {
 	f.cwd = workingDir
 	return nil
 }
-func (f *fakeServer) Stop()                              { f.started = false; f.cwd = "" }
-func (f *fakeServer) StartedSubprocess() bool            { return f.started }
-func (f *fakeServer) WorkingDir() string                 { return f.cwd }
+func (f *fakeServer) Stop()                   { f.started = false; f.cwd = "" }
+func (f *fakeServer) StartedSubprocess() bool { return f.started }
+func (f *fakeServer) WorkingDir() string      { return f.cwd }
 
 func TestEndToEndSelectsProjectThenPrompt(t *testing.T) {
 	root := t.TempDir()

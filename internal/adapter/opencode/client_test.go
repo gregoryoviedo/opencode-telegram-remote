@@ -89,8 +89,8 @@ func TestClientSendPromptReturnsAssistantText(t *testing.T) {
 func TestClientRevertPicksLastUserMessage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.URL.Path == "/session/s1/revert":
+		switch r.URL.Path {
+		case "/session/s1/revert":
 			var body struct {
 				MessageID string `json:"messageID"`
 			}
@@ -103,7 +103,7 @@ func TestClientRevertPicksLastUserMessage(t *testing.T) {
 				return
 			}
 			fmt.Fprint(w, `{"ok":true}`)
-		case r.URL.Path == "/session/s1/message":
+		case "/session/s1/message":
 			fmt.Fprint(w, `[
 				{"info":{"id":"msg_user_1","role":"user"}},
 				{"info":{"id":"msg_assist_1","role":"assistant"}},

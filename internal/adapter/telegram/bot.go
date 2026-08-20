@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gregoryoviedo/opencode-telegram-remote/internal/domain"
 	tele "gopkg.in/telebot.v3"
 	"gopkg.in/telebot.v3/middleware"
+
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/domain"
 )
 
 const callbackEndpoint = "rb"
@@ -37,7 +38,7 @@ type Bot struct {
 
 func New(config Config, handler Handler, logger *slog.Logger) (*Bot, error) {
 	if strings.TrimSpace(config.Token) == "" {
-		return nil, fmt.Errorf("Telegram bot token is required")
+		return nil, fmt.Errorf("telegram bot token is required")
 	}
 	if config.AllowedChatID == 0 {
 		return nil, fmt.Errorf("allowed Telegram chat ID is required")
@@ -50,8 +51,8 @@ func New(config Config, handler Handler, logger *slog.Logger) (*Bot, error) {
 	}
 	logger = logger.With("component", "telegram")
 	client, err := tele.NewBot(tele.Settings{
-		Token:  config.Token,
-		URL:    config.APIRoot,
+		Token: config.Token,
+		URL:   config.APIRoot,
 		Poller: &tele.LongPoller{
 			Timeout:        config.PollTimeout,
 			AllowedUpdates: []string{"message", "callback_query"},
