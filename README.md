@@ -295,11 +295,11 @@ Para construir el wrapper Swift:
 make app
 ```
 
-CI: cada push y PR ejecuta `go test -race` con `-coverprofile` sobre la
-matriz Go 1.22 / 1.23 × Ubuntu / macOS y `golangci-lint` sobre Ubuntu.
-Las dependencias se mantienen al día vía Dependabot (`gomod`,
-`github-actions`, `swift`) agrupadas en PRs separados por tipo. La
-configuración del linter vive en `.golangci.yml`.
+CI: cada push y PR ejecuta `go test -race` con `-coverprofile` sobre
+Go 1.23 (Ubuntu) y `golangci-lint` sobre Ubuntu. Las dependencias se
+mantienen al día vía Dependabot (`gomod`, `github-actions`, `swift`)
+agrupadas en PRs separados por tipo. La configuración del linter vive en
+`.golangci.yml`.
 
 El repositorio conserva el binario `remote-bot` compilado en la raíz por
 comodidad (es el único artefacto que produce el proyecto). Bórralo antes de

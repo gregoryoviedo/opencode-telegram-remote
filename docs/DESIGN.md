@@ -336,8 +336,7 @@ that workflow is still documented in the repo history.
 - New failure modes that the wrapper or another adapter might need to
   handle get a sentinel in `domain/errors.go` first; string-matching
   error checks are a smell.
-- CI runs `go test -race -coverprofile` on a matrix (Go 1.22 / 1.23 ×
-  Ubuntu / macOS) plus `golangci-lint` (config in `.golangci.yml`).
-  Dependabot opens weekly PRs grouped by ecosystem (`gomod`,
-  `github-actions`, `swift`) so dependency churn never sneaks in
-  unreviewed.
+- CI runs `go test -race -coverprofile` on Go 1.23 (Ubuntu) plus
+  `golangci-lint` (config in `.golangci.yml`). Dependabot opens weekly
+  PRs grouped by ecosystem (`gomod`, `github-actions`, `swift`) so
+  dependency churn never sneaks in unreviewed.

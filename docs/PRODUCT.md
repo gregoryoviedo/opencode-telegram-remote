@@ -111,9 +111,9 @@ On macOS the wrapper is the convenient launcher:
 
 ## Project infrastructure
 
-- **CI** (`.github/workflows/ci.yml`): `go test -race -coverprofile` on a
-  Go 1.22 / 1.23 × Ubuntu / macOS matrix, plus `golangci-lint` on
-  Ubuntu. Runs on every push and PR to `main`.
+- **CI** (`.github/workflows/ci.yml`): `go test -race -coverprofile` on
+  Go 1.23 (Ubuntu) plus `golangci-lint` on Ubuntu. Runs on every push
+  and PR to `main`.
 - **Linting** (`.golangci.yml`): `errcheck`, `govet`, `staticcheck`,
   `revive`, `gocritic`, `goimports` (with `local-prefixes` matching the
   module path), and friends — exclusions scoped to `_test.go` helpers
