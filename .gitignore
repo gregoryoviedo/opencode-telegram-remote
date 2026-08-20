@@ -3,6 +3,13 @@ backend/bin/
 *.test
 *.out
 
+# macOS menu bar app
+macos/OpenCodeRemote/build/
+macos/OpenCodeRemote/OpenCodeRemote.xcodeproj/
+macos/OpenCodeRemote/OpenCodeRemote/Resources/remote-bot
+dist/
+*.dSYM/
+
 # State and logs
 .opencode-remote/
 .opencode.pid

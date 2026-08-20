@@ -131,16 +131,15 @@ func (b *Bot) registerCommands() error {
 
 func (b *Bot) send(c tele.Context, response Response) error {
 	markup := keyboard(response.Buttons)
+	html := markdownToTelegramHTML(response.Text)
+	options := []interface{}{tele.ModeHTML}
+	if markup != nil {
+		options = append(options, markup)
+	}
 	if response.Edit {
-		if markup == nil {
-			return c.Edit(response.Text)
-		}
-		return c.Edit(response.Text, markup)
+		return c.Edit(html, options...)
 	}
-	if markup == nil {
-		return c.Send(response.Text)
-	}
-	return c.Send(response.Text, markup)
+	return c.Send(html, options...)
 }
 
 func keyboard(buttons [][]Button) *tele.ReplyMarkup {
