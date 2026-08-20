@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opencode-remote/opencode-telegram-remote/internal/domain"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/domain"
 )
 
 // Telegram rejects callback_data longer than 64 bytes (BUTTON_DATA_INVALID).

@@ -252,14 +252,24 @@ validated against that record.
 
 - The bot is single-threaded for Telegram handlers: telebot.v3 runs them
   in goroutines, but every operation that touches shared state goes
-  through SQLite, which we serialize with a single connection.
+  through SQLite, which we serialize with a single connection
+  (`db.SetMaxOpenConns(1)`).
 - The CLI process shuts down on `SIGINT` / `SIGTERM` via
   `signal.NotifyContext`; the bot stops its long poller and the SQLite
   connection is closed.
+- The `opencode serve` subprocess is started with `Setpgid: true` so
+  that its whole process group can be terminated with a single
+  `SIGTERM`. If it does not exit within `shutdownGrace` (5 s) the
+  manager escalates to `SIGKILL`. The wrapper applies the same 5-second
+  escalation window via `Process.terminate()`.
 - The Swift wrapper observes the child via `Process.terminationHandler`
   on the main queue. State updates fan out through a single
   `onStateChange` closure (the previous Combine + closure duplication was
   removed).
+- Navigation records expire after `navigationTTL` (15 minutes); each
+  successful `Enter` / `Back` / `Home` resets the timer. Records are
+  bound to the originating `chatID`, so a callback pressed in another
+  chat returns `ErrUnauthorizedNavigation`.
 
 ## Error handling
 
@@ -317,7 +327,8 @@ that workflow is still documented in the repo history.
   secret handling) gets tests first.
 - New Telegram commands are added in exactly three places: the
   `commands` slice in the adapter, the dispatcher in the bot handler,
-  and a unit test.
+  and a unit test. The bot's command menu (`SetCommands`) is registered
+  in `registerCommands()` so that Telegram's autocomplete stays in sync.
 - Adapters depend inward only; the domain package must remain
   import-free.
 - Test coverage on the workspace browser and navigation service is
@@ -325,3 +336,8 @@ that workflow is still documented in the repo history.
 - New failure modes that the wrapper or another adapter might need to
   handle get a sentinel in `domain/errors.go` first; string-matching
   error checks are a smell.
+- CI runs `go test -race -coverprofile` on a matrix (Go 1.22 / 1.23 ×
+  Ubuntu / macOS) plus `golangci-lint` (config in `.golangci.yml`).
+  Dependabot opens weekly PRs grouped by ecosystem (`gomod`,
+  `github-actions`, `swift`) so dependency churn never sneaks in
+  unreviewed.

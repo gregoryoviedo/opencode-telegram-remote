@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opencode-remote/opencode-telegram-remote/internal/adapter/storage/sqlite"
-	"github.com/opencode-remote/opencode-telegram-remote/internal/adapter/workspace"
-	"github.com/opencode-remote/opencode-telegram-remote/internal/domain"
-	"github.com/opencode-remote/opencode-telegram-remote/internal/usecase"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/adapter/storage/sqlite"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/adapter/workspace"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/domain"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/usecase"
 )
 
 // recordingServer satisfies domain.OpenCodeServerManager and remembers every

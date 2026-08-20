@@ -1,4 +1,4 @@
-module github.com/opencode-remote/opencode-telegram-remote
+module github.com/gregoryoviedo/opencode-telegram-remote
 
 go 1.22
 

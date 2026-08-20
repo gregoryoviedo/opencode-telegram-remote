@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/opencode-remote/opencode-telegram-remote/internal/domain"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/domain"
 )
 
 type Handler struct {

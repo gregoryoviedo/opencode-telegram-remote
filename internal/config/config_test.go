@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/opencode-remote/opencode-telegram-remote/internal/config"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/config"
 )
 
 func TestLoadFromEnvFile(t *testing.T) {

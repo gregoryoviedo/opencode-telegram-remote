@@ -109,6 +109,23 @@ On macOS the wrapper is the convenient launcher:
 - The Swift wrapper never makes network calls. It only spawns the Go
   binary and supervises its lifecycle.
 
+## Project infrastructure
+
+- **CI** (`.github/workflows/ci.yml`): `go test -race -coverprofile` on a
+  Go 1.22 / 1.23 × Ubuntu / macOS matrix, plus `golangci-lint` on
+  Ubuntu. Runs on every push and PR to `main`.
+- **Linting** (`.golangci.yml`): `errcheck`, `govet`, `staticcheck`,
+  `revive`, `gocritic`, `goimports` (with `local-prefixes` matching the
+  module path), and friends — exclusions scoped to `_test.go` helpers
+  that intentionally swallow errors.
+- **Dependency updates** (`.github/dependabot.yml`): weekly PRs grouped
+  by ecosystem (`gomod`, `github-actions`, `swift`), labelled and
+  prefixed (`chore(deps)`, `ci(actions)`, `chore(macos-deps)`) so the
+  changelog stays readable.
+- **Community** (`.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md`,
+  `CODE_OF_CONDUCT.md`): structured bug reports, feature requests and a
+  PR checklist aligned with `CONTRIBUTING.md`.
+
 ## Open task list
 
 Items in priority order, intentionally small and incremental:

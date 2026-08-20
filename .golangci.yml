@@ -1,0 +1,62 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    # Default-ish set curated for a clean-arch Go project
+    - errcheck       # unchecked errors
+    - govet          # standard go vet
+    - ineffassign    # unused assignments
+    - staticcheck    # extensive static analysis
+    - unused         # unused symbols
+    - gosimple       # simplifications
+    - gocritic       # opinionated style/perf checks
+    - gofmt          # formatting
+    - goimports      # import grouping
+    - misspell       # English spelling
+    - bodyclose      # HTTP body close
+    - errorlint      # error wrapping style
+    - nilerr         # returning nil from error-handling paths
+    - revive         # golint successor
+    - stylecheck     # style checks (ST1000 etc.)
+    - unconvert      # unnecessary conversions
+    - unparam        # unused function params
+
+  settings:
+    goimports:
+      local-prefixes: github.com/gregoryoviedo/opencode-telegram-remote
+    revive:
+      rules:
+        - name: var-naming
+        - name: exported
+        - name: package-comments
+        - name: indent-error-flow
+        - name: errorf
+    misspell:
+      locale: en
+
+  exclusions:
+    # Don't flag test helpers that intentionally return errors
+    paths:
+      - internal/adapter/storage/sqlite/_test\.go$
+      - internal/adapter/telegram/_test\.go$
+      - internal/adapter/opencode/_test\.go$
+      - internal/usecase/_test\.go$
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  fixable: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes: github.com/gregoryoviedo/opencode-telegram-remote

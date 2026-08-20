@@ -1,5 +1,12 @@
 # OpenCode Remote
 
+[![CI](https://github.com/gregoryoviedo/opencode-telegram-remote/actions/workflows/ci.yml/badge.svg)](https://github.com/gregoryoviedo/opencode-telegram-remote/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/gregoryoviedo/opencode-telegram-remote)](https://goreportcard.com/report/github.com/gregoryoviedo/opencode-telegram-remote)
+[![Latest Release](https://img.shields.io/github/v/release/gregoryoviedo/opencode-telegram-remote)](https://github.com/gregoryoviedo/opencode-telegram-remote/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/gregoryoviedo/opencode-telegram-remote)](https://github.com/gregoryoviedo/opencode-telegram-remote/blob/main/LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/gregoryoviedo/opencode-telegram-remote)](https://github.com/gregoryoviedo/opencode-telegram-remote/blob/main/go.mod)
+[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025e8c?logo=dependabot)](https://github.com/gregoryoviedo/opencode-telegram-remote/network/dependencies)
+
 Control remoto para una instancia local de `opencode serve` desde Telegram.
 Dos artefactos: un binario Go único (`remote-bot`) que hace el trabajo, y
 opcionalmente una app nativa para macOS (`OpenCodeRemote.app`) que vive en la
@@ -288,6 +295,12 @@ Para construir el wrapper Swift:
 make app
 ```
 
+CI: cada push y PR ejecuta `go test -race` con `-coverprofile` sobre la
+matriz Go 1.22 / 1.23 × Ubuntu / macOS y `golangci-lint` sobre Ubuntu.
+Las dependencias se mantienen al día vía Dependabot (`gomod`,
+`github-actions`, `swift`) agrupadas en PRs separados por tipo. La
+configuración del linter vive en `.golangci.yml`.
+
 El repositorio conserva el binario `remote-bot` compilado en la raíz por
 comodidad (es el único artefacto que produce el proyecto). Bórralo antes de
 publicar una rama si no quieres enviar el binario compilado junto con el
@@ -308,7 +321,14 @@ código fuente.
 ├── docs/
 │   ├── DESIGN.md                arquitectura y decisiones
 │   └── PRODUCT.md               alcance y hoja de ruta
+├── .github/
+│   ├── workflows/ci.yml         matriz de tests + golangci-lint
+│   ├── dependabot.yml           actualizaciones semanales de dependencias
+│   ├── ISSUE_TEMPLATE/          bug report y feature request
+│   └── PULL_REQUEST_TEMPLATE.md checklist para contribuidores
 ├── .env.example
+├── .golangci.yml                configuración del linter
+├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
 ├── LICENSE
 ├── Makefile                     build del wrapper macOS

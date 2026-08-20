@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opencode-remote/opencode-telegram-remote/internal/adapter/opencode"
-	"github.com/opencode-remote/opencode-telegram-remote/internal/adapter/storage/sqlite"
-	"github.com/opencode-remote/opencode-telegram-remote/internal/adapter/workspace"
-	"github.com/opencode-remote/opencode-telegram-remote/internal/domain"
-	"github.com/opencode-remote/opencode-telegram-remote/internal/usecase"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/adapter/opencode"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/adapter/storage/sqlite"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/adapter/workspace"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/domain"
+	"github.com/gregoryoviedo/opencode-telegram-remote/internal/usecase"
 )
 
 // fakeServer satisfies domain.OpenCodeServerManager without spawning anything.
