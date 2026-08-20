@@ -6,7 +6,6 @@ run:
   modules-download-mode: readonly
 
 linters:
-  disable-all: false
   enable:
     # Curated set: catches real bugs without flooding CI with style noise.
     - errcheck       # unchecked errors
