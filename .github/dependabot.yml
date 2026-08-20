@@ -14,17 +14,11 @@ updates:
     groups:
       # Major version bumps are noisy — keep them separate for review
       major:
-        dependency-type: "direct"
+        dependency-type: "production"
         update-types:
           - "major"
     commit-message:
       prefix: "chore(deps)"
-    # Avoid forcing PRs for every indirect dep
-    ignore:
-      - dependency-name: "*"
-        versions:
-          - ">= 2"
-
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
